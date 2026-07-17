@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TalentMatch AI | ATS Scorer</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Main stylesheet -->
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <!-- Background elements for visual flair -->
+    <div class="bg-shape bg-shape-1"></div>
+    <div class="bg-shape bg-shape-2"></div>
+
+    <div class="app-container">
+      <header class="app-header">
+        <h1>TalentMatch <span class="accent-text">AI</span></h1>
+        <p class="subtitle">AI-Powered Resume ↔ Job Description Match Scorer</p>
+      </header>
+
+      <main class="main-content">
+        <!-- Input Section -->
+        <section class="card input-section" id="inputSection">
+          <form id="scoreForm">
+            <div class="form-group">
+              <label for="resumeUpload">Resume (PDF)</label>
+              <div class="file-drop-area" id="dropArea">
+                <span class="drop-text">Drag & drop your PDF here or click to browse</span>
+                <input type="file" id="resumeUpload" name="pdf_file" accept=".pdf" required />
+                <span class="file-name" id="fileName"></span>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="jobDescription">Job Description</label>
+              <textarea id="jobDescription" name="job_description" placeholder="Paste the full job description here..." required></textarea>
+            </div>
+
+            <button type="submit" class="btn-primary" id="submitBtn">
+              <span class="btn-text">Analyze Match</span>
+              <div class="loader" id="btnLoader" style="display: none;"></div>
+            </button>
+          </form>
+        </section>
+
+        <!-- Results Section (Hidden initially) -->
+        <section class="card results-section" id="resultsSection" style="display: none;">
+          <h2>Analysis Results</h2>
+          
+          <div class="score-container">
+            <div class="score-circle">
+              <svg viewBox="0 0 36 36" class="circular-chart">
+                <path class="circle-bg"
+                  d="M18 2.0845
+                    a 15.9155 15.9155 0 0 1 0 31.831
+                    a 15.9155 15.9155 0 0 1 0 -31.831"
+                />
+                <path class="circle" id="scoreCirclePath"
+                  stroke-dasharray="0, 100"
+                  d="M18 2.0845
+                    a 15.9155 15.9155 0 0 1 0 31.831
+                    a 15.9155 15.9155 0 0 1 0 -31.831"
+                />
+                <text x="18" y="20.35" class="percentage" id="scoreValue">0%</text>
+              </svg>
+            </div>
+            <div class="score-label">Match Score</div>
+          </div>
+
+          <div class="explanation-box">
+            <h3>Detailed Breakdown</h3>
+            <div id="explanationContent" class="explanation-content">
+              <!-- Rendered JSON/Text will go here -->
+            </div>
+          </div>
+          
+          <button class="btn-secondary" id="resetBtn">Analyze Another</button>
+        </section>
+      </main>
+
+      <footer class="app-footer">
+        <p>Built with ❤️ by Anshuman & Arnav</p>
+      </footer>
+    </div>
+
+    <!-- Error Toast -->
+    <div id="toast" class="toast"></div>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+python-multipart
+torch
+pymupdf>=1.24.10
+easyocr>=1.7.2
+groq>=1.5.0
+httpx>=0.28
+sentence-transformers>=3.0.1
+rapidfuzz>=3.9.6
+pydantic
+python-dateutil
+python-dotenv
+tenacity
+numpy
+pandas
