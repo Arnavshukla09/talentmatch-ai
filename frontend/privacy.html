@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+  <title>Privacy Policy | TalentMatch AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css" />
+  <style>
+    .privacy-container {
+      max-width: 800px;
+      margin: 2rem auto;
+      padding: 2rem;
+      background: var(--card-bg);
+      border-radius: 12px;
+      box-shadow: 0 4px 6px var(--shadow-color);
+    }
+    .privacy-container h1 { color: var(--accent-color); margin-bottom: 1rem; }
+    .privacy-container h2 { margin-top: 1.5rem; margin-bottom: 0.5rem; font-size: 1.2rem; }
+    .privacy-container p, .privacy-container ul { line-height: 1.6; margin-bottom: 1rem; color: var(--text-primary); }
+    .privacy-container ul { padding-left: 1.5rem; }
+    .back-link { display: inline-block; margin-bottom: 1rem; color: var(--accent-color); text-decoration: none; }
+    .back-link:hover { text-decoration: underline; }
+  </style>
+  <script>
+    (function () {
+      var saved = localStorage.getItem('talentmatch-theme');
+      var theme = saved || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+</head>
+<body>
+  <div class="bg-shape bg-shape-1"></div>
+  <div class="bg-shape bg-shape-2"></div>
+  
+  <div class="app-container">
+    <header class="app-header">
+      <h1>TalentMatch <span class="accent-text">AI</span></h1>
+    </header>
+
+    <main class="main-content">
+      <div class="privacy-container">
+        <a href="/" class="back-link">&larr; Back to Home</a>
+        <h1>Privacy Policy</h1>
+        <p><strong>Last Updated: August 2026</strong></p>
+        
+        <h2>1. Data Collection and Usage</h2>
+        <p>TalentMatch AI is a tool designed to match your resume against job descriptions. We respect your privacy and are committed to protecting it. Our service operates with strict data minimization principles:</p>
+        <ul>
+          <li><strong>Resumes:</strong> When you upload a resume (PDF) or paste text, it is processed temporarily in memory to extract text and generate analytical scores. The file is deleted immediately after the analysis is complete. We do not store, log, or train models on your resume data.</li>
+          <li><strong>Job Descriptions:</strong> The job description text is processed alongside your resume and is not permanently stored or linked to you.</li>
+        </ul>
+
+        <h2>2. Data Storage</h2>
+        <p>We do not use databases to store user information, resumes, or job descriptions. The browser extension only requests local <code>storage</code> permission to temporarily cache your uploaded PDF across your own browser sessions. This data never leaves your device except when actively sent to our API for scoring.</p>
+
+        <h2>3. Third-Party Services</h2>
+        <p>TalentMatch AI may optionally utilize external APIs (e.g., Groq) to generate human-readable feedback. If utilized, data sent to these APIs is subject to their respective privacy policies and is not retained by us.</p>
+
+        <h2>4. Chrome/Edge Extension Permissions</h2>
+        <p>Our browser extension requires the following permissions:</p>
+        <ul>
+          <li><strong>activeTab / scripting:</strong> Used exclusively to read the job description text from the job board you are currently viewing.</li>
+          <li><strong>storage:</strong> Used to temporarily cache your resume locally on your machine for a seamless experience.</li>
+        </ul>
+
+        <h2>5. Contact Us</h2>
+        <p>If you have any questions or concerns about this Privacy Policy, please contact the developer at the repository provided on our homepage.</p>
+      </div>
+    </main>
+    
+    <footer class="app-footer">
+      <p>Built by Anshuman & Arnav</p>
+    </footer>
+  </div>
+</body>
+</html>
