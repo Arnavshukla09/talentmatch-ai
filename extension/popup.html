@@ -55,25 +55,105 @@
       </section>
 
       <section id="resultsSection" style="display: none;">
-        <h2>Results</h2>
+        <h2>Analysis Results</h2>
         
-        <div class="score-container">
-          <div class="score-circle">
-            <svg viewBox="0 0 36 36" class="circular-chart">
-              <path class="circle-bg"
-                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-              <path class="circle" id="scoreCirclePath" stroke-dasharray="0, 100"
-                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-              <text x="18" y="20.35" class="percentage" id="scoreValue">0%</text>
-            </svg>
+        <div class="scores-wrapper">
+          <div class="score-container">
+            <div class="score-circle">
+              <svg viewBox="0 0 36 36" class="circular-chart">
+                <path class="circle-bg"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                <path class="circle" id="scoreCirclePath" stroke-dasharray="0, 100"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                <text x="18" y="20.35" class="percentage" id="scoreValue">0%</text>
+              </svg>
+            </div>
+            <div class="score-label">Overall ATS Score</div>
           </div>
-          <div class="score-label">ATS Score</div>
+
+          <div class="score-container">
+            <div class="score-circle">
+              <svg viewBox="0 0 36 36" class="circular-chart">
+                <path class="circle-bg"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                <path class="circle" id="semanticCirclePath" stroke-dasharray="0, 100"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                <text x="18" y="20.35" class="percentage" id="semanticValue">0%</text>
+              </svg>
+            </div>
+            <div class="score-label">Semantic Match</div>
+          </div>
+        </div>
+
+        <div id="matchSummaryContainer" class="match-summary-container" style="display: none; padding: 1rem; background: rgba(139, 92, 246, 0.05); border-left: 3px solid var(--accent-color); border-radius: 8px; margin-bottom: 1.5rem;">
+          <h4 style="margin-top:0; color: var(--accent-color); font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem;">
+            <span>🤖</span> AI Match Analysis
+          </h4>
+          <p id="matchSummaryText" style="font-size: 0.9rem; line-height: 1.5; color: var(--text-primary); margin-bottom:0;"></p>
         </div>
 
         <!-- ATS Red Flags Section -->
-        <div id="extRedFlagsContainer" style="display: none; padding: 0.8rem; background: rgba(239, 68, 68, 0.05); border-left: 3px solid #ef4444; border-radius: 6px; margin-bottom: 1rem; text-align: left;">
-          <h4 style="margin-top:0; color: #ef4444; font-size: 0.85rem; margin-bottom: 0.4rem;">🚨 ATS Red Flags</h4>
-          <ul id="extRedFlagsList" style="font-size: 0.8rem; color: #333; padding-left: 1rem; margin: 0;"></ul>
+        <div id="extRedFlagsContainer" class="red-flags-container" style="display: none; padding: 1rem; background: rgba(239, 68, 68, 0.05); border-left: 3px solid #ef4444; border-radius: 8px; margin-bottom: 1.5rem; text-align: left;">
+          <h4 style="margin-top:0; color: #ef4444; font-size: 0.95rem; margin-bottom: 0.4rem;">
+            <span>🚨</span> ATS Red Flags Detected
+          </h4>
+          <ul id="extRedFlagsList" style="font-size: 0.9rem; line-height: 1.5; color: var(--text-primary); margin-bottom:0; padding-left: 1.2rem;"></ul>
+        </div>
+
+        <div id="candidateProfile" class="candidate-profile" style="display: none;">
+          <h3>Candidate Highlights</h3>
+          <div class="profile-card">
+            <div class="profile-header">
+              <div id="candidateInitials" class="candidate-initials"></div>
+              <div class="profile-info">
+                <h4 id="candidateName"></h4>
+                <p id="candidateEmail" class="text-secondary"></p>
+              </div>
+            </div>
+            <p id="candidateSummary" class="candidate-summary-text"></p>
+            
+            <div class="perks-grid">
+              <div class="perk-box">
+                <span class="perk-icon">💼</span>
+                <span class="perk-label">Experience</span>
+                <strong id="perkExperience"></strong>
+              </div>
+              <div class="perk-box">
+                <span class="perk-icon">🎓</span>
+                <span class="perk-label">Education</span>
+                <strong id="perkEducation"></strong>
+              </div>
+              <div class="perk-box">
+                <span class="perk-icon">🚀</span>
+                <span class="perk-label">Projects</span>
+                <strong id="perkProjects"></strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="analysis-grid" id="analysisGrid" style="display: none;">
+          <div class="analysis-col">
+            <h4><span class="dot matched-dot"></span> Profile Strengths</h4>
+            <ul id="strengthsList" class="feature-list"></ul>
+          </div>
+          <div class="analysis-col">
+            <h4><span class="dot missing-dot"></span> Areas for Improvement</h4>
+            <ul id="improvementsList" class="feature-list"></ul>
+          </div>
+        </div>
+        
+        <div id="skillsContainer" class="skills-container" style="display: none;">
+           <div class="skills-grid">
+             <div class="skills-col">
+               <h4><span class="dot matched-dot"></span> Matched Skills</h4>
+               <div id="matchedSkills" class="skill-tags"></div>
+             </div>
+             <div class="skills-col">
+               <h4><span class="dot missing-dot"></span> Missing Skills</h4>
+               <div id="missingSkills" class="skill-tags"></div>
+             </div>
+           </div>
         </div>
 
         <button class="btn-primary" id="visitWebsiteBtn" style="margin-bottom: 0.5rem;">View Full Report on Website</button>

@@ -165,6 +165,16 @@ document.addEventListener('DOMContentLoaded', () => {
     resultsSection.style.display = 'none';
     inputSection.style.display = 'block';
     scoreCirclePath.setAttribute('stroke-dasharray', '0, 100');
+    
+    const semanticCirclePath = document.getElementById('semanticCirclePath');
+    if (semanticCirclePath) semanticCirclePath.setAttribute('stroke-dasharray', '0, 100');
+    
+    const matchSummaryContainer = document.getElementById('matchSummaryContainer');
+    if (matchSummaryContainer) matchSummaryContainer.style.display = 'none';
+    
+    const extRedFlagsContainer = document.getElementById('extRedFlagsContainer');
+    if (extRedFlagsContainer) extRedFlagsContainer.style.display = 'none';
+
     charCountDisplay.textContent = '0 / 15000';
     autoExtractJD(); // Try to get text again
   });
@@ -177,11 +187,17 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function showResults(data) {
-    const score = data.score;
-    const percentage = Math.round(score * 100);
+    const score = data.overall_score || data.score || 0;
+    const percentage = Math.round(score);
+    
+    const semanticScore = (data.scores && data.scores.semantic) || 0;
+    const semanticPercentage = Math.round(semanticScore);
     
     inputSection.style.display = 'none';
     resultsSection.style.display = 'block';
+
+    const semanticCirclePath = document.getElementById('semanticCirclePath');
+    const semanticValue = document.getElementById('semanticValue');
 
     const extRedFlagsContainer = document.getElementById('extRedFlagsContainer');
     const extRedFlagsList = document.getElementById('extRedFlagsList');
@@ -200,6 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     setTimeout(() => {
       scoreCirclePath.setAttribute('stroke-dasharray', `${percentage}, 100`);
+      if (semanticCirclePath) semanticCirclePath.setAttribute('stroke-dasharray', `${semanticPercentage}, 100`);
       
       if (percentage >= 75) {
         scoreCirclePath.style.stroke = 'var(--success-color)';
@@ -208,9 +225,90 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         scoreCirclePath.style.stroke = 'var(--danger-color)';
       }
+
+      if (semanticCirclePath) {
+        if (semanticPercentage >= 75) {
+          semanticCirclePath.style.stroke = 'var(--success-color)';
+        } else if (semanticPercentage >= 50) {
+          semanticCirclePath.style.stroke = 'var(--accent-color)';
+        } else {
+          semanticCirclePath.style.stroke = 'var(--danger-color)';
+        }
+      }
     }, 100);
 
     animateValue(scoreValue, 0, percentage, 1500);
+    if (semanticValue) animateValue(semanticValue, 0, semanticPercentage, 1500);
+
+    // Profile Highlights
+    const parsed = data.parsed_resume;
+    if (parsed) {
+      document.getElementById('candidateProfile').style.display = 'block';
+      const name = (parsed.contact && parsed.contact.full_name) ? parsed.contact.full_name : "Unknown Candidate";
+      document.getElementById('candidateName').textContent = name;
+      document.getElementById('candidateEmail').textContent = (parsed.contact && parsed.contact.email) ? parsed.contact.email : "No email provided";
+      const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || "?";
+      document.getElementById('candidateInitials').textContent = initials;
+      document.getElementById('candidateSummary').textContent = parsed.summary || "No professional summary provided.";
+      
+      const expCount = parsed.experience ? parsed.experience.length : 0;
+      document.getElementById('perkExperience').textContent = `${expCount} role${expCount === 1 ? '' : 's'}`;
+      
+      const eduCount = parsed.education ? parsed.education.length : 0;
+      document.getElementById('perkEducation').textContent = `${eduCount} degree${eduCount === 1 ? '' : 's'}`;
+      
+      const projCount = parsed.projects ? parsed.projects.length : 0;
+      document.getElementById('perkProjects').textContent = `${projCount} project${projCount === 1 ? '' : 's'}`;
+    } else {
+      document.getElementById('candidateProfile').style.display = 'none';
+    }
+
+    // Strengths & Improvements
+    const analysisGrid = document.getElementById('analysisGrid');
+    const strengthsList = document.getElementById('strengthsList');
+    const improvementsList = document.getElementById('improvementsList');
+    const strengths = data.top_positive_factors || [];
+    const improvements = data.top_negative_factors || [];
+    
+    if (strengths.length > 0 || improvements.length > 0) {
+      strengthsList.innerHTML = strengths.map(s => `<li><span class="check-icon">✓</span> ${s}</li>`).join('') || '<li>No specific strengths identified.</li>';
+      improvementsList.innerHTML = improvements.map(s => `<li><span class="x-icon">✗</span> ${s}</li>`).join('') || '<li>No specific areas for improvement identified.</li>';
+      analysisGrid.style.display = 'grid';
+    } else {
+      analysisGrid.style.display = 'none';
+    }
+
+    // Skills
+    const skillsContainer = document.getElementById('skillsContainer');
+    const matchedSkillsDiv = document.getElementById('matchedSkills');
+    const missingSkillsDiv = document.getElementById('missingSkills');
+    
+    const formatSkill = (skill) => {
+        if (!skill) return "";
+        const known = {'c': 'C', 'r': 'R', 'cpp': 'C++', 'c++': 'C++', 'c#': 'C#', 'javascript': 'JavaScript', 'typescript': 'TypeScript', 'html': 'HTML', 'css': 'CSS', 'php': 'PHP', 'sql': 'SQL', 'mysql': 'MySQL', 'postgresql': 'PostgreSQL', 'aws': 'AWS', 'gcp': 'GCP', 'api': 'API', 'ui': 'UI', 'ux': 'UX', 'react': 'React', 'node': 'Node.js'};
+        if (known[skill.toLowerCase()]) return known[skill.toLowerCase()];
+        return skill.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    };
+
+    if (data.matched_skills || data.missing_skills) {
+      skillsContainer.style.display = 'block';
+      const matched = data.matched_skills || [];
+      const missing = data.missing_skills || [];
+      matchedSkillsDiv.innerHTML = matched.map(s => `<span class="skill-tag matched">${formatSkill(s)}</span>`).join('') || '<span class="skill-tag empty">None found</span>';
+      missingSkillsDiv.innerHTML = missing.map(s => `<span class="skill-tag missing">${formatSkill(s)}</span>`).join('') || '<span class="skill-tag empty">None missing</span>';
+    } else {
+      skillsContainer.style.display = 'none';
+    }
+
+    // AI Match Summary
+    const matchSummaryContainer = document.getElementById('matchSummaryContainer');
+    const matchSummaryText = document.getElementById('matchSummaryText');
+    if (data.match_summary) {
+      matchSummaryText.textContent = data.match_summary;
+      if(matchSummaryContainer) matchSummaryContainer.style.display = 'block';
+    } else {
+      if(matchSummaryContainer) matchSummaryContainer.style.display = 'none';
+    }
   }
 
   function showToast(message) {
