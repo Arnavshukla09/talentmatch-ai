@@ -1,3 +1,10 @@
+// Escape untrusted API text before inserting it into HTML templates.
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[char]);
+}
+
 // Theme toggle
 const THEME_KEY = 'talentmatch-theme';
 const themeToggleBtn = document.getElementById('themeToggle');
@@ -93,7 +100,7 @@ scoreForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   
   const file = resumeUpload.files[0];
-  const jdText = jobDescriptionInput.value;
+  const jdText = jobDescriptionInput.value.trim();
 
   if (!file || !jdText) {
     showToast("Please provide both a PDF and a Job Description.");
@@ -131,17 +138,18 @@ scoreForm.addEventListener('submit', async (e) => {
     const response = await fetch(API_URL, {
       method: 'POST',
       body: formData,
+      signal: AbortSignal.timeout(120000),
     });
 
     if (!response.ok) {
-      const errData = await response.json();
+      const errData = await response.json().catch(() => ({}));
       throw new Error(errData.detail || 'Server error occurred');
     }
 
     const data = await response.json();
     showResults(data);
   } catch (error) {
-    showToast(error.message);
+    showToast(error.name === 'TimeoutError' ? 'The server took too long. Please try again.' : error.message);
   } finally {
     // Reset loading state
     clearInterval(loadingInterval);
@@ -230,8 +238,8 @@ function showResults(data) {
   const improvements = data.top_negative_factors || [];
   
   if (strengths.length > 0 || improvements.length > 0) {
-    strengthsList.innerHTML = strengths.map(s => `<li><span class="check-icon">✓</span> ${s}</li>`).join('') || '<li>No specific strengths identified.</li>';
-    improvementsList.innerHTML = improvements.map(s => `<li><span class="x-icon">✗</span> ${s}</li>`).join('') || '<li>No specific areas for improvement identified.</li>';
+    strengthsList.innerHTML = strengths.map(s => `<li><span class="check-icon">✓</span> ${escapeHTML(s)}</li>`).join('') || '<li>No specific strengths identified.</li>';
+    improvementsList.innerHTML = improvements.map(s => `<li><span class="x-icon">✗</span> ${escapeHTML(s)}</li>`).join('') || '<li>No specific areas for improvement identified.</li>';
     analysisGrid.style.display = 'grid';
   } else {
     analysisGrid.style.display = 'none';
@@ -260,8 +268,8 @@ function showResults(data) {
     const matched = data.matched_skills || [];
     const missing = data.missing_skills || [];
     
-    matchedSkillsDiv.innerHTML = matched.map(s => `<span class="skill-tag matched">${formatSkill(s)}</span>`).join('') || '<span class="skill-tag empty">None found</span>';
-    missingSkillsDiv.innerHTML = missing.map(s => `<span class="skill-tag missing">${formatSkill(s)}</span>`).join('') || '<span class="skill-tag empty">None missing</span>';
+    matchedSkillsDiv.innerHTML = matched.map(s => `<span class="skill-tag matched">${escapeHTML(formatSkill(s))}</span>`).join('') || '<span class="skill-tag empty">None found</span>';
+    missingSkillsDiv.innerHTML = missing.map(s => `<span class="skill-tag missing">${escapeHTML(formatSkill(s))}</span>`).join('') || '<span class="skill-tag empty">None missing</span>';
   } else {
     skillsContainer.style.display = 'none';
   }
@@ -298,15 +306,16 @@ function showResults(data) {
 
   if (data.suggestions && data.suggestions.length > 0) {
     suggestionsList.innerHTML = data.suggestions.map(s => {
-      const priorityClass = `priority-${s.priority || 'medium'}`;
-      const priorityLabel = (s.priority || 'medium').toUpperCase();
+      const priority = ['high', 'medium', 'low'].includes(s.priority) ? s.priority : 'medium';
+      const priorityClass = `priority-${priority}`;
+      const priorityLabel = priority.toUpperCase();
       return `
         <div class="suggestion-card">
           <div class="suggestion-card-top">
-            <span class="suggestion-issue">⚠ ${s.issue}</span>
+            <span class="suggestion-issue">⚠ ${escapeHTML(s.issue)}</span>
             <span class="suggestion-priority ${priorityClass}">${priorityLabel}</span>
           </div>
-          <p class="suggestion-text">✨ ${s.suggestion}</p>
+          <p class="suggestion-text">✨ ${escapeHTML(s.suggestion)}</p>
         </div>`;
     }).join('');
     if(suggestionsContainer) suggestionsContainer.style.display = 'block';
@@ -331,8 +340,8 @@ function showResults(data) {
       
       tableHTML += `
         <tr>
-          <td>${key}</td>
-          <td>${formattedValue}</td>
+          <td>${escapeHTML(key)}</td>
+          <td>${escapeHTML(formattedValue)}</td>
         </tr>`;
     }
     

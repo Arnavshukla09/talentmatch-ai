@@ -2,7 +2,7 @@
 tests/test_pipeline.py  —  TalentMatch v2 end-to-end pipeline test.
 
 Does NOT require:
-  - GROQ_API_KEY (removed)
+  - GROQ_API_KEY (use MOCK_LLM=1 to mock optional coaching)
   - Network access (embeddings model downloads on first run only)
   - Real labeled data
 
@@ -13,8 +13,9 @@ DOES require:
 Run with:
     python -m pytest tests/ -v --no-header
 
-To skip C++ bridge tests (Python-only validation):
-    python -m pytest tests/ -v -k "not cpp"
+For checks without native scoring or an embedding model:
+    python -m pytest tests/test_api_security.py tests/test_coaching.py -q
+Only TestCppBridge skips automatically when the native library is missing.
 """
 
 from pathlib import Path
@@ -182,6 +183,20 @@ class TestPipelineContract:
         pipeline = InferencePipeline()
         with pytest.raises((ValueError, Exception)):
             pipeline.run(job_description_text=SAMPLE_JD_TEXT)
+
+    def test_extracted_resume_text_is_opt_in(self):
+        from src.pipeline import InferencePipeline
+        pipeline = InferencePipeline()
+        result = pipeline.run(resume_text=SAMPLE_RESUME_TEXT, job_description_text=SAMPLE_JD_TEXT)
+        assert "extracted_resume_text" not in result
+        result = pipeline.run(resume_text=SAMPLE_RESUME_TEXT, job_description_text=SAMPLE_JD_TEXT,
+                              return_resume_text=True)
+        assert result["extracted_resume_text"] == SAMPLE_RESUME_TEXT
+
+    def test_blank_resume_rejected_before_embedding(self):
+        from src.pipeline import InferencePipeline
+        with pytest.raises(ValueError, match="No readable text"):
+            InferencePipeline().run(resume_text="   ", job_description_text=SAMPLE_JD_TEXT)
 
 
 class TestPDFExtraction:

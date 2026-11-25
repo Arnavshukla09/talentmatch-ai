@@ -127,15 +127,21 @@ std::vector<TrieMatch> AhoCorasickTrie::scan(const std::string& raw_text) const 
             size_t end = i + 1;
             size_t start = end - static_cast<size_t>(nodes_[cur].pattern_len);
 
-            // Word boundary check: character before start and after end must not be
-            // a valid word character. We consider alnum and special symbols (+ # . & -) as word chars
-            // to avoid "C" matching inside "C++", "C#", "C-level", or "R&D".
+            // Preserve language suffixes, but allow sentence punctuation and
+            // compounds such as "Python-based" around ordinary skill names.
             auto is_word_char = [](unsigned char ch) {
-                return std::isalnum(ch) || ch == '+' || ch == '#' || ch == '.' || ch == '&' || ch == '-';
+                return std::isalnum(ch) || ch == '+' || ch == '#';
             };
             
             bool left_ok  = (start == 0) || !is_word_char(static_cast<unsigned char>(text[start - 1]));
             bool right_ok = (end >= text.size()) || !is_word_char(static_cast<unsigned char>(text[end]));
+            if (nodes_[cur].pattern_len == 1) {
+                if (start > 0 && (text[start - 1] == '&' || text[start - 1] == '-')) left_ok = false;
+                if (end < text.size() && (text[end] == '&' || text[end] == '-')) right_ok = false;
+                // A dot within an identifier differs from a sentence-ending dot.
+                if (end + 1 < text.size() && text[end] == '.' &&
+                    std::isalnum(static_cast<unsigned char>(text[end + 1]))) right_ok = false;
+            }
 
             if (left_ok && right_ok) {
                 raw_matches.push_back({

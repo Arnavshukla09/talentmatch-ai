@@ -1,4 +1,5 @@
 #include "education.hpp"
+#include "../skills/trie.hpp"
 #include <regex>
 #include <algorithm>
 #include <sstream>
@@ -344,7 +345,8 @@ double ResumeQualityExtractor::formatting_consistency(const Resume& resume) {
     return (total > 0) ? static_cast<double>(with_dates) / static_cast<double>(total) : 0.5;
 }
 
-void ResumeQualityExtractor::extract(const Resume& resume, FeatureVector& fv) {
+void ResumeQualityExtractor::extract(const Resume& resume, FeatureVector& fv,
+                                     const std::vector<std::string>& skill_names) {
     // Word count
     std::istringstream ss(resume.raw_text);
     int word_count = static_cast<int>(std::distance(
@@ -392,9 +394,29 @@ void ResumeQualityExtractor::extract(const Resume& resume, FeatureVector& fv) {
     // Normalize FK score (0 to 100 normally, map to 0.0-1.0)
     double readability_score = std::max(0.0, std::min(1.0, fk_score / 100.0));
 
-    // Keyword Stuffing Penalty
-    double skill_density = static_cast<double>(resume.raw_skills.size()) / std::max(1, word_count);
-    double keyword_stuffing_penalty = (skill_density > 0.25) ? 1.0 : 0.0;
+    // Detect repeated skill mentions, rather than penalizing a diverse skill list.
+    // Engine-provided matches also cover resumes without a SKILLS heading.
+    AhoCorasickTrie skill_trie;
+    std::unordered_set<std::string> unique_skills;
+    for (const auto& names : {resume.raw_skills, skill_names}) {
+        for (const auto& name : names) {
+            const auto normalized = ed_lower(name);
+            if (!normalized.empty() && unique_skills.insert(normalized).second)
+                skill_trie.add_pattern(normalized, normalized, "");
+        }
+    }
+    skill_trie.build();
+    std::unordered_map<std::string, int> mentions;
+    for (const auto& match : skill_trie.scan(resume.raw_text)) ++mentions[match.canonical_name];
+    int repeated_mentions = 0;
+    bool excessive_single_skill = false;
+    for (const auto& item : mentions) {
+        repeated_mentions += std::max(0, item.second - 3);
+        if (item.second >= 10 && static_cast<double>(item.second) / std::max(1, word_count) > 0.10)
+            excessive_single_skill = true;
+    }
+    const bool excessive_repetition = static_cast<double>(repeated_mentions) / std::max(1, word_count) > 0.30;
+    double keyword_stuffing_penalty = (word_count >= 30 && (excessive_single_skill || excessive_repetition)) ? 1.0 : 0.0;
 
     fv.set("section_completeness_score",  section_completeness(resume));
     fv.set("action_verb_density_global",  av_density_global);

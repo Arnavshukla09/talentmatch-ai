@@ -281,7 +281,9 @@ static json score_impl(const json& req) {
     EducationFeatureExtractor::extract(resume, jd_text, fv);
     ProjectFeatureExtractor::extract(resume, jd_text, jd_techs, fv);
     CertificationFeatureExtractor::extract(resume, jd_text, fv);
-    ResumeQualityExtractor::extract(resume, fv);
+    std::vector<std::string> candidate_skill_names;
+    for (const auto& skill : cand_skills.matched_skills) candidate_skill_names.push_back(skill.canonical_name);
+    ResumeQualityExtractor::extract(resume, fv, candidate_skill_names);
     SkillsFeatureExtractor::extract(cand_skills, jd_skills_result, gap, fv);
     g_state.retrieval->extract(resume_text, jd_text, resume_emb, jd_emb, fv);
 

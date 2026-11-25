@@ -1,0 +1,6 @@
+-r requirements.txt
+pytest
+httpx
+aiohttp
+fpdf2
+psutil

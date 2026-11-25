@@ -1,3 +1,10 @@
+// Escape untrusted API text before inserting it into HTML templates.
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[char]);
+}
+
 const API_URL = 'https://talentmatch-ai-jwqd.onrender.com/api/score';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -26,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Load profile on start
   chrome.storage.local.get(['resumeText'], (result) => {
-    if (result.resumeText) {
+    if (typeof result.resumeText === 'string' && result.resumeText.length <= 100000) {
       setProfileActive(result.resumeText);
     }
   });
@@ -42,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   clearProfileBtn.addEventListener('click', () => {
     chrome.storage.local.remove(['resumeText'], () => {
+      if (chrome.runtime.lastError) { showToast('Could not clear your profile. Please try again.'); return; }
       savedResumeText = null;
       profileStatusIcon.textContent = '❌';
       profileStatusText.textContent = 'No resume saved';
@@ -71,8 +79,10 @@ document.addEventListener('DOMContentLoaded', () => {
              showToast("Extract Error: " + text.substring(0, 50));
              return;
           }
+          if (typeof text !== 'string' || text.length > 100000) { showToast('Resume text must be under 100000 characters.'); return; }
           if (text.length > 50) {
              chrome.storage.local.set({ resumeText: text }, () => {
+               if (chrome.runtime.lastError) { showToast('Could not save your profile. Please try again.'); return; }
                setProfileActive(text);
                showToast("Resume profile saved successfully!");
              });
@@ -91,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Try to auto-extract JD on load
   autoExtractJD();
 
-  autoExtractBtn.addEventListener('click', autoExtractJD);
+  autoExtractBtn.addEventListener('click', () => { jobDescriptionInput.value = ''; autoExtractJD(); });
 
   jobDescriptionInput.addEventListener('input', (e) => {
     charCountDisplay.textContent = `${e.target.value.length} / 15000`;
@@ -101,7 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     
     const file = resumeUpload.files[0];
-    const jdText = jobDescriptionInput.value;
+    const jdText = jobDescriptionInput.value.trim();
 
     if (!savedResumeText && !file) {
       showToast("Please provide a PDF or save a profile first.");
@@ -127,25 +137,34 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       formData.append('pdf_file', file);
     }
-    formData.append('job_description', jdText.substring(0, 15000)); // enforce limit
+    if (jdText.length > 15000) {
+      showToast('Job Description is too long. Max 15000 characters.');
+      submitBtn.disabled = false;
+      btnText.textContent = 'Analyze Match';
+      return;
+    }
+    formData.append('job_description', jdText);
+    const rememberResume = document.getElementById('rememberResume');
+    if (!savedResumeText && rememberResume?.checked) formData.append('return_resume_text', 'true');
 
     try {
       const response = await fetch(API_URL, {
         method: 'POST',
         body: formData,
+        signal: AbortSignal.timeout(120000),
       });
 
       if (!response.ok) {
-        const errData = await response.json();
+        const errData = await response.json().catch(() => ({}));
         throw new Error(errData.detail || 'Server error occurred');
       }
 
       const data = await response.json();
       
-      const rememberResume = document.getElementById('rememberResume');
-      if (!savedResumeText && rememberResume && rememberResume.checked && data.parsed_resume && data.parsed_resume.raw_extracted_text) {
-        const text = data.parsed_resume.raw_extracted_text;
+      if (!savedResumeText && rememberResume?.checked && data.extracted_resume_text) {
+        const text = data.extracted_resume_text;
         chrome.storage.local.set({ resumeText: text }, () => {
+          if (chrome.runtime.lastError) { showToast('Could not save your profile. Please try again.'); return; }
           setProfileActive(text);
           showToast("Perfectly extracted profile saved from PDF!");
         });
@@ -153,7 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       showResults(data);
     } catch (error) {
-      showToast(error.message);
+      showToast(error.name === 'TimeoutError' ? 'The server took too long. Please try again.' : error.message);
     } finally {
       submitBtn.disabled = false;
       btnText.textContent = "Analyze Match";
@@ -271,8 +290,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const improvements = data.top_negative_factors || [];
     
     if (strengths.length > 0 || improvements.length > 0) {
-      strengthsList.innerHTML = strengths.map(s => `<li><span class="check-icon">✓</span> ${s}</li>`).join('') || '<li>No specific strengths identified.</li>';
-      improvementsList.innerHTML = improvements.map(s => `<li><span class="x-icon">✗</span> ${s}</li>`).join('') || '<li>No specific areas for improvement identified.</li>';
+      strengthsList.innerHTML = strengths.map(s => `<li><span class="check-icon">✓</span> ${escapeHTML(s)}</li>`).join('') || '<li>No specific strengths identified.</li>';
+      improvementsList.innerHTML = improvements.map(s => `<li><span class="x-icon">✗</span> ${escapeHTML(s)}</li>`).join('') || '<li>No specific areas for improvement identified.</li>';
       analysisGrid.style.display = 'grid';
     } else {
       analysisGrid.style.display = 'none';
@@ -294,8 +313,8 @@ document.addEventListener('DOMContentLoaded', () => {
       skillsContainer.style.display = 'block';
       const matched = data.matched_skills || [];
       const missing = data.missing_skills || [];
-      matchedSkillsDiv.innerHTML = matched.map(s => `<span class="skill-tag matched">${formatSkill(s)}</span>`).join('') || '<span class="skill-tag empty">None found</span>';
-      missingSkillsDiv.innerHTML = missing.map(s => `<span class="skill-tag missing">${formatSkill(s)}</span>`).join('') || '<span class="skill-tag empty">None missing</span>';
+      matchedSkillsDiv.innerHTML = matched.map(s => `<span class="skill-tag matched">${escapeHTML(formatSkill(s))}</span>`).join('') || '<span class="skill-tag empty">None found</span>';
+      missingSkillsDiv.innerHTML = missing.map(s => `<span class="skill-tag missing">${escapeHTML(formatSkill(s))}</span>`).join('') || '<span class="skill-tag empty">None missing</span>';
     } else {
       skillsContainer.style.display = 'none';
     }
@@ -353,8 +372,10 @@ document.addEventListener('DOMContentLoaded', () => {
              console.error(text);
              return;
           }
+          if (typeof text !== 'string') return;
           if (text.length > 50) { // arbitrary minimum
              const smartText = smartExtractJD(text);
+             if (jobDescriptionInput.value.trim()) return;
              jobDescriptionInput.value = smartText;
              charCountDisplay.textContent = `${smartText.length} / 15000`;
           }
@@ -369,7 +390,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function extractTextFromPage() {
     try {
       // 1. Google Docs specific extraction using the official Export API!
-      if (window.location.hostname.includes('docs.google.com')) {
+      if (window.location.hostname === 'docs.google.com') {
         const match = window.location.pathname.match(/\/d\/([a-zA-Z0-9-_]+)/);
         if (match && match[1]) {
           const docId = match[1];

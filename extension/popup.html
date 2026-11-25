@@ -6,11 +6,29 @@
   <title>TalentMatch AI</title>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css" />
+  <script src="./theme.js"></script>
 </head>
 <body>
   <div class="app-container">
     <header class="app-header">
+        <button id="themeToggle" class="theme-toggle" type="button" aria-label="Toggle light and dark theme">
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="4"></circle>
+            <line x1="12" y1="2" x2="12" y2="4"></line>
+            <line x1="12" y1="20" x2="12" y2="22"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="2" y1="12" x2="4" y2="12"></line>
+            <line x1="20" y1="12" x2="22" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
       <h1>TalentMatch <span class="accent-text">AI</span></h1>
+      <p class="subtitle">Resume ↔ Job Description Match Scorer</p>
     </header>
 
     <main class="main-content">
@@ -85,7 +103,7 @@
           </div>
         </div>
 
-        <div id="matchSummaryContainer" class="match-summary-container" style="display: none; padding: 1rem; background: rgba(139, 92, 246, 0.05); border-left: 3px solid var(--accent-color); border-radius: 8px; margin-bottom: 1.5rem;">
+        <div id="matchSummaryContainer" class="match-summary-container" style="display: none; padding: 1rem; border-left: 3px solid var(--accent-color); border-radius: 8px; margin-bottom: 1.5rem;">
           <h4 style="margin-top:0; color: var(--accent-color); font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem;">
             <span>🤖</span> AI Match Analysis
           </h4>
@@ -93,8 +111,8 @@
         </div>
 
         <!-- ATS Red Flags Section -->
-        <div id="extRedFlagsContainer" class="red-flags-container" style="display: none; padding: 1rem; background: rgba(239, 68, 68, 0.05); border-left: 3px solid #ef4444; border-radius: 8px; margin-bottom: 1.5rem; text-align: left;">
-          <h4 style="margin-top:0; color: #ef4444; font-size: 0.95rem; margin-bottom: 0.4rem;">
+        <div id="extRedFlagsContainer" class="red-flags-container" style="display: none; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; text-align: left;">
+          <h4 style="margin-top:0; color: var(--danger-color); font-size: 0.95rem; margin-bottom: 0.4rem;">
             <span>🚨</span> ATS Red Flags Detected
           </h4>
           <ul id="extRedFlagsList" style="font-size: 0.9rem; line-height: 1.5; color: var(--text-primary); margin-bottom:0; padding-left: 1.2rem;"></ul>
@@ -156,10 +174,11 @@
            </div>
         </div>
 
-        <button class="btn-primary" id="visitWebsiteBtn" style="margin-bottom: 0.5rem;">View Full Report on Website</button>
+        <button class="btn-primary" id="visitWebsiteBtn" style="margin-bottom: 0.5rem;">Visit TalentMatch Website</button>
         <button class="btn-secondary" id="resetBtn">Analyze Another</button>
       </section>
     </main>
+    <footer class="app-footer">Built by Anshuman &amp; Arnav</footer>
   </div>
   
   <div id="toast" class="toast"></div>

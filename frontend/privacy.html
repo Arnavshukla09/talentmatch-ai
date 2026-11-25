@@ -46,26 +46,27 @@
       <div class="privacy-container">
         <a href="/" class="back-link">&larr; Back to Home</a>
         <h1>Privacy Policy</h1>
-        <p><strong>Last Updated: August 2026</strong></p>
+        <p><strong>Last Updated: November 25, 2026</strong></p>
         
         <h2>1. Data Collection and Usage</h2>
         <p>TalentMatch AI is a tool designed to match your resume against job descriptions. We respect your privacy and are committed to protecting it. Our service operates with strict data minimization principles:</p>
         <ul>
-          <li><strong>Resumes:</strong> When you upload a resume (PDF) or paste text, it is processed temporarily in memory to extract text and generate analytical scores. The file is deleted immediately after the analysis is complete. We do not store, log, or train models on your resume data.</li>
+          <li><strong>Resumes:</strong> PDF uploads are written to a temporary server file for text extraction and scoring; pasted text is processed directly. The temporary file is removed when request processing finishes. Resume text and job descriptions are not intentionally retained or used to train models by this application.</li>
           <li><strong>Job Descriptions:</strong> The job description text is processed alongside your resume and is not permanently stored or linked to you.</li>
         </ul>
 
         <h2>2. Data Storage</h2>
-        <p>We do not use databases to store user information, resumes, or job descriptions. The browser extension only requests local <code>storage</code> permission to temporarily cache your uploaded PDF across your own browser sessions. This data never leaves your device except when actively sent to our API for scoring.</p>
+        <p>We do not use databases to store user information, resumes, or job descriptions. If you choose to remember a resume or save a page as a profile, the extension stores extracted resume text in <code>chrome.storage.local</code> on your device until you select Clear Profile or uninstall the extension. It stores text, not the PDF. That text is sent to our API when you request scoring; PDF extraction text is returned to the extension only when remembering the resume is requested.</p>
 
         <h2>3. Third-Party Services</h2>
-        <p>TalentMatch AI may optionally utilize external APIs (e.g., Groq) to generate human-readable feedback. If utilized, data sent to these APIs is subject to their respective privacy policies and is not retained by us.</p>
+        <p>When the deployment operator configures a Groq API key, scoring also sends excerpts of the resume and job description, together with matched and missing skills, to Groq to generate coaching feedback. If utilized, data sent to these APIs is subject to their respective privacy policies and is not retained by us.</p>
 
         <h2>4. Chrome/Edge Extension Permissions</h2>
         <p>Our browser extension requires the following permissions:</p>
         <ul>
-          <li><strong>activeTab / scripting:</strong> Used exclusively to read the job description text from the job board you are currently viewing.</li>
-          <li><strong>storage:</strong> Used to temporarily cache your resume locally on your machine for a seamless experience.</li>
+          <li><strong>activeTab / scripting:</strong> Used to read text from the active page for job description extraction or when you choose Save Page as Resume.</li>
+          <li><strong>storage:</strong> Used to keep a resume text profile on your device until you clear it, and to remember your extension theme preference. The theme is also cached in extension-local browser storage for startup and is separate from the website theme.</li>
+          <li><strong>API host access:</strong> Allows scoring requests to the TalentMatch API. General access to all websites is not requested.</li>
         </ul>
 
         <h2>5. Contact Us</h2>

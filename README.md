@@ -1,588 +1,198 @@
-<div align="center">
+# TalentMatch AI
 
-# TalentMatch AI v2
+Resume-to-job matching with a native C++ scoring engine, a FastAPI web application, and a Chrome/Edge extension.
 
-**Production-grade Resume Ranking Engine — No LLM, No API Key**
+[Live demo](https://talentmatch-ai-jwqd.onrender.com/) · [Extension guide](docs/EXTENSION.md) · [API reference](docs/API.md) · [Development and validation](docs/DEVELOPMENT.md) · [Changelog](CHANGELOG.md)
 
-[![Live Demo](https://img.shields.io/badge/Live_Demo-Render-FF6B6B?style=for-the-badge)](https://talentmatch-ai-jwqd.onrender.com/)
-[![No API Key](https://img.shields.io/badge/API_Key-Not_Required-3fb950?style=for-the-badge)](.)
-[![Engine](https://img.shields.io/badge/Scoring_Engine-C++-00599C?style=for-the-badge&logo=cplusplus&logoColor=white)](cpp_core/)
-[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
+The backend architecture is **v2**. The packaged browser extension is **1.2.1**. These versions describe separate components.
 
-<br/>
+## Current features
 
-*Deterministic Scoring · Aho-Corasick Trie Matching · BM25 Retrieval · XGBoost Ranking*
+- PDF resume uploads or plain-text resumes through the API.
+- Overall match score and six category scores: skills, experience, education, projects, semantic alignment, and resume quality.
+- Matched, missing, and partially matched skills, with rule-based strengths and areas for improvement.
+- Native Aho-Corasick matching, BM25/TF-IDF retrieval features, and a deterministic weighted fallback scorer. XGBoost is optional and requires a compatible build and model.
+- Optional Groq coaching: an AI summary and rewrite suggestions after scoring. A configured API key enables this external call; scoring itself does not need a key.
+- Chrome/Edge popup with active-page job extraction, a locally saved resume text profile, and PDF text saving when “Remember this resume” is selected.
+- Matching website and extension themes: cream/maroon in light mode and charcoal/terracotta in dark mode. Each interface remembers its own theme choice.
+- Server-side file/text limits, generated temporary upload filenames, contained static file serving, escaped report text, and bounded client requests.
 
-*~85 engineered features computed natively in C++. Python handles only PDF extraction and embeddings.*
-
-<br/>
-
-[**Try the Demo →**](https://talentmatch-ai-jwqd.onrender.com/) · [Architecture](#architecture) · [C++ Engine](#c-engine-core) · [Get Started](#getting-started)
-
----
-
-</div>
-
-> [!CAUTION]
-> **Before using the live demo**, note that the backend must be woken up first (Render free tier spins down after inactivity).
-> The system might take up to 90 seconds to analyze your first resume while the servers boot up.
->
-> [**Go to Live Demo →**](https://talentmatch-ai-jwqd.onrender.com/)
-
-> [!NOTE]
-> v2 replaces the Groq/LLM-based pipeline with a **deterministic C++ ML engine**. All scoring intelligence runs natively in C++. Python is responsible only for PDF text extraction and embedding generation.
-> 
-> *Optional*: If a `GROQ_API_KEY` is provided in the environment, the pipeline will query Groq at the very end to generate an **AI Match Summary** and actionable **Rewrite Suggestions** based on the C++ engine's findings.
-
----
-
-## Table of Contents
-
-<details>
-<summary><b>Click to expand</b></summary>
-
-1. [Why TalentMatch AI](#why-talentmatch-ai)
-2. [Architecture](#architecture)
-3. [Sample Output](#sample-output)
-4. [C++ Engine Core](#c-engine-core)
-5. [Building](#building)
-6. [Getting Started](#getting-started)
-7. [Training the XGBoost Model](#training-the-xgboost-model-optional)
-8. [What Was Removed (v1 → v2)](#what-was-removed-v1--v2)
-9. [Project Structure](#project-structure)
-10. [Contributors](#contributors)
-11. [License](#license)
-
-</details>
-
----
-
-## Why TalentMatch AI
-
-Most "AI resume matchers" are a thin prompt wrapped around a hosted LLM — slow, non-deterministic, and dependent on a third-party API key and rate limit. TalentMatch AI v2 takes the opposite approach:
-
-| Principle | How It's Achieved |
-|:---|:---|
-| **Deterministic** | Same resume + JD always produces the same score. No prompt drift, no hallucinated skills |
-| **Local-first** | Embeddings run on a local MiniLM model; scoring runs in native C++. Nothing leaves the machine unless you deploy it |
-| **Fast** | Aho-Corasick trie matching, BM25 retrieval, and ~85 features computed natively — no round-tripping to a hosted model |
-| **Explainable** | Every score ships with rule-based positive/negative factors, not an opaque LLM narrative |
-| **Zero-config** | No `.env` file, no API key, no external service dependency to get a working scorer out of the box |
-
----
+The web and extension results show overall and semantic scores. The API exposes all six category scores; the UI does not yet display each category separately.
 
 ## Architecture
 
-### End-to-End System Architecture
-
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {
-    'primaryColor': '#1e293b',
-    'primaryTextColor': '#f8fafc',
-    'primaryBorderColor': '#38bdf8',
-    'lineColor': '#94a3b8',
-    'secondaryColor': '#1e1b4b',
-    'tertiaryColor': '#0f172a',
-    'background': 'transparent',
-    'mainBkg': '#1e293b',
-    'clusterBkg': 'transparent',
-    'clusterBorder': '#475569'
-}}}%%
-graph TD
-    classDef client fill:#1e293b,stroke:#38bdf8,stroke-width:2px,color:#f8fafc;
-    classDef python fill:#1e1b4b,stroke:#818cf8,stroke-width:2px,color:#f8fafc;
-    classDef cpp fill:#062f4f,stroke:#34d399,stroke-width:2px,color:#f8fafc;
-    classDef data fill:#3f220f,stroke:#fbbf24,stroke-width:2px,color:#f8fafc;
-
-    subgraph Client ["Client (Web UI / Chrome Extension)"]
-        A["User Uploads Resume & JD"]:::client
-        H["Render Match Report & ATS Score"]:::client
-    end
-
-    subgraph Python ["Python Orchestration Layer (FastAPI)"]
-        B["PDF Parser (PyMuPDF / EasyOCR)"]:::python
-        C["Embedder (Local MiniLM Model)"]:::python
-        D["ctypes FFI JSON Bridge"]:::python
-    end
-
-    subgraph Cpp ["C++ Core ML Scorer (Native DLL)"]
-        E1["Deterministic Resume Parser (Regex)"]:::cpp
-        E2["Skill Engine (Aho-Corasick Trie)"]:::cpp
-        E3["Text Retrieval Engine (BM25)"]:::cpp
-
-        F["Feature Engineering (~85 Features)"]:::cpp
-
-        G1["XGBoost ML Ranker (or Linear Fallback)"]:::cpp
-        G2["Explanation Engine (Rule-based)"]:::cpp
-    end
-
-    subgraph ModelData ["Model & Config Assets"]
-        M1[("xgboost_model.json")]:::data
-        M2[("skill_taxonomy.json")]:::data
-    end
-
-    A --> B
-    B -->|"Extract plain text"| C
-    C -->|"Compute vector embeddings"| D
-
-    D -->|"Send Raw Text & Embeddings"| E1
-    D -->|"Send Raw Text & Embeddings"| E2
-    D -->|"Send Raw Text & Embeddings"| E3
-
-    M2 --> E2
-
-    E1 -->|"Education & Experience features"| F
-    E2 -->|"Skill overlap statistics"| F
-    E3 -->|"Probabilistic text overlaps"| F
-
-    F --> G1
-    F --> G2
-
-    M1 --> G1
-
-    G1 -->|"Return ATS Score (0-100)"| D
-    G2 -->|"Return Match Factors"| D
-
-    D -->|"JSON Response"| H
-
-    style Client fill:transparent,stroke:#38bdf8,stroke-width:1.5px
-    style Python fill:transparent,stroke:#818cf8,stroke-width:1.5px
-    style Cpp fill:transparent,stroke:#34d399,stroke-width:1.5px
-    style ModelData fill:transparent,stroke:#fbbf24,stroke-width:1.5px
+flowchart TD
+    Web[Web interface] --> API[FastAPI]
+    Extension[Chrome / Edge extension] --> API
+    API --> PDF[PyMuPDF text extraction or supplied resume text]
+    PDF --> Embeddings[Local MiniLM embeddings]
+    Embeddings --> Bridge[Python ctypes bridge]
+    Bridge --> Engine[C++ parsing, skills, features and ranking]
+    Engine --> Report[Scores, skill gaps and rule-based factors]
+    Report --> API
+    Report -. Optional coaching .-> Groq[Groq API]
+    Groq -. Summary and suggestions .-> API
 ```
 
-### What Python Does vs What C++ Does
+The numerical scores and rule-based factors run in C++. Python handles validation, PDF extraction, embeddings, the native bridge, and optional coaching. The default Docker build disables XGBoost and uses the linear fallback. The first local embedding run may download the model; Docker downloads it during image building.
 
-```mermaid
-flowchart LR
-    subgraph PY["Python (Orchestration Only)"]
-        direction TB
-        P1["Extract text from PDF"]
-        P2["Generate embeddings<br/>(local MiniLM)"]
-        P3["Call C++ via ctypes FFI"]
-        P4["Return JSON to client"]
-        P1 --> P2 --> P3 --> P4
-    end
+Matching and score reproducibility assume the same engine, model/configuration, and date-dependent inputs. Optional AI coaching is generated separately and can vary.
 
-    subgraph CPP["C++ (All Scoring Intelligence)"]
-        direction TB
-        C1["Parse resume structure"]
-        C2["Match skills via Aho-Corasick"]
-        C3["Compute BM25 text relevance"]
-        C4["Engineer ~85 features"]
-        C5["Score via XGBoost / linear"]
-        C6["Generate explanations"]
-        C1 --> C4
-        C2 --> C4
-        C3 --> C4
-        C4 --> C5
-        C4 --> C6
-    end
+## Get started
 
-    PY -->|"FFI boundary<br/>(ctypes JSON)"| CPP
+Use Python 3.10 or newer, CMake 3.18+, a C++17 compiler, and Git. Install a Python version supported by the PyTorch and sentence-transformers wheels on your platform. UI tests require Node.js 22.13 or newer.
 
-    style PY fill:#1e1b4b,stroke:#818cf8,stroke-width:2px,color:#f8fafc
-    style CPP fill:#062f4f,stroke:#34d399,stroke-width:2px,color:#f8fafc
-```
+### Local API and website
 
-> [!IMPORTANT]
-> **Python does NOT compute any score.** Everything between the FFI boundary and the JSON response — parsing, skill matching, feature engineering, retrieval scoring, ranking, and explanation generation — runs natively in C++.
-
----
-
-## Sample Output
-
-```json
-{
-  "overall_score": 91.3,
-  "scores": {
-    "skills":         95.0,
-    "experience":     87.0,
-    "education":     100.0,
-    "projects":       90.0,
-    "semantic":       93.0,
-    "resume_quality": 82.0
-  },
-  "matched_skills":       ["Python", "PostgreSQL", "Docker", "Kafka"],
-  "missing_skills":       ["Terraform"],
-  "partial_skills":       [
-    {"jd_skill": "cloud deployment", "matched_as": "AWS", "confidence": 0.71}
-  ],
-  "top_positive_factors": [
-    "Excellent skill match — 92% of required skills aligned",
-    "Strong relevant experience — 6 yrs",
-    "Strong semantic alignment with job description"
-  ],
-  "top_negative_factors": [
-    "Missing required skills: Terraform",
-    "Skill gap — only 87% of required skills found"
-  ],
-  "ranking_method": "linear_fallback"
-}
-```
-
-The response includes **six sub-scores**, matched/missing/partial skill breakdowns, and rule-based positive and negative factors — all computed deterministically in the C++ engine.
-
----
-
-## C++ Engine Core
-
-TalentMatch AI v2 compiles all ATS scoring, feature engineering, and machine learning logic into a high-performance native C++ library. Python communicates with it via a lightweight ctypes FFI bridge.
-
-### Engine Module Architecture
-
-```mermaid
-flowchart TB
-    subgraph ENTRY["FFI Entry Point"]
-        ENGINE["engine.cpp<br/>C-linkage JSON interface"]
-    end
-
-    subgraph PARSING["Resume Parsing"]
-        RP["resume_parser.cpp<br/>Dates, contact info, segments"]
-        SD["section_detector.cpp<br/>Regex-based heading detection"]
-        RP <--> SD
-    end
-
-    subgraph SKILLS["Skill Matching"]
-        SE["skill_engine.cpp<br/>Token matching, JD coverage"]
-        SM["synonym_matcher.cpp<br/>Variant resolution"]
-        TRIE["trie.cpp<br/>Aho-Corasick parallel scan"]
-        SE <--> SM
-        SE <--> TRIE
-    end
-
-    subgraph RETRIEVAL["Text Retrieval"]
-        BM25["bm25.cpp<br/>Probabilistic TF-IDF scoring"]
-    end
-
-    subgraph FEATURES["Feature Engineering"]
-        EDU["education.cpp<br/>Degrees, tiers, rankings"]
-        EXP["experience.cpp<br/>Durations, seniority, transitions"]
-        SKF["skills_features.cpp<br/>Overlap ratios, density metrics"]
-    end
-
-    subgraph RANKING["Ranking"]
-        XGB["xgboost_ranker.cpp<br/>Decision tree prediction<br/>(linear fallback)"]
-    end
-
-    subgraph EXPLAIN["Explainability"]
-        EXE["explanation_engine.cpp<br/>Positive indicators, warnings"]
-    end
-
-    ENGINE --> PARSING
-    ENGINE --> SKILLS
-    ENGINE --> RETRIEVAL
-    PARSING --> FEATURES
-    SKILLS --> FEATURES
-    RETRIEVAL --> FEATURES
-    EDU & EXP & SKF --> RANKING
-    EDU & EXP & SKF --> EXPLAIN
-
-    style ENTRY fill:#0d1117,stroke:#34d399,stroke-width:2px,color:#c9d1d9
-    style PARSING fill:#0d1117,stroke:#58a6ff,stroke-width:2px,color:#c9d1d9
-    style SKILLS fill:#0d1117,stroke:#d29922,stroke-width:2px,color:#c9d1d9
-    style RETRIEVAL fill:#0d1117,stroke:#bc8cff,stroke-width:2px,color:#c9d1d9
-    style FEATURES fill:#0d1117,stroke:#3fb950,stroke-width:2px,color:#c9d1d9
-    style RANKING fill:#0d1117,stroke:#e94560,stroke-width:2px,color:#c9d1d9
-    style EXPLAIN fill:#0d1117,stroke:#8b949e,stroke-width:2px,color:#c9d1d9
-```
-
-### Core Modules
-
-<details>
-<summary><b><code>engine.cpp</code></b> — FFI Entry Point</summary>
-
-Entry API wrapper exposing standard C-linkage JSON interfaces. Declared in `include/engine.h` for Python ctypes binding.
-
-</details>
-
-<details>
-<summary><b><code>parser/</code></b> — Deterministic Resume Parsing</summary>
-
-| File | Purpose |
-|:---|:---|
-| `resume_parser.cpp` | Core parsing routines for dates, contact info, and document segments |
-| `section_detector.cpp` | Scans headings using regex to identify document regions (education, experience, skills, etc.) |
-
-</details>
-
-<details>
-<summary><b><code>skills/</code></b> — High-Performance Skill Matching</summary>
-
-| File | Purpose |
-|:---|:---|
-| `skill_engine.cpp` | Evaluates raw text, normalized skills, and required JD coverage percentages |
-| `synonym_matcher.cpp` | Resolves variants (e.g., "JS" → "JavaScript", "Postgres" → "PostgreSQL") |
-| `trie.cpp` | Implements Aho-Corasick trie structures for parallel multi-pattern scanning |
-
-</details>
-
-<details>
-<summary><b><code>retrieval/</code></b> — Classical Text Retrieval</summary>
-
-| File | Purpose |
-|:---|:---|
-| `bm25.cpp` | Computes probabilistic TF-IDF and BM25 relevance scores between resume and JD text |
-
-</details>
-
-<details>
-<summary><b><code>features/</code></b> — Feature Engineering (~85 features)</summary>
-
-| File | Purpose |
-|:---|:---|
-| `education.cpp` | Scores academic degrees, institutional rankings, and tier classification |
-| `experience.cpp` | Scores timeline durations, career transitions, and title seniority |
-| `skills_features.cpp` | Calculates matched/missing keyword statistics, overlap ratios, and density metrics |
-
-</details>
-
-<details>
-<summary><b><code>ranking/</code></b> — ML Ranking</summary>
-
-| File | Purpose |
-|:---|:---|
-| `xgboost_ranker.cpp` | Performs decision-tree prediction from the ~85 feature vector; falls back to linear weights if no trained model is present |
-
-</details>
-
-<details>
-<summary><b><code>explainability/</code></b> — Rule-Based Explanations</summary>
-
-| File | Purpose |
-|:---|:---|
-| `explanation_engine.cpp` | Generates user-facing positive indicators and missing-skill warnings from feature values |
-
-</details>
-
----
-
-## Building
-
-| Platform | Command |
-|:---|:---|
-| **Linux / macOS** | `chmod +x scripts/build_engine.sh && ./scripts/build_engine.sh` |
-| **Windows** | `.\scripts\build_engine.ps1` *(requires Visual Studio 2022 with C++ workload + CMake)* |
-| **Docker (recommended)** | `docker build -t talentmatch . && docker compose up` |
-
-<details>
-<summary><b>Manual CMake build</b></summary>
+From the repository root, build the engine:
 
 ```bash
-cd cpp_core
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-cmake --build . --config Release
-```
-
-</details>
-
----
-
-## Getting Started
-
-### Local Development (no Docker)
-
-```bash
-# 1. Build the C++ engine (required)
+# Linux / macOS
+chmod +x scripts/build_engine.sh
 ./scripts/build_engine.sh
+```
 
-# 2. Python setup
+```powershell
+# Windows: Visual Studio C++ workload or a configured MinGW toolchain
+.\scripts\build_engine.ps1
+```
+
+Then create an environment and start FastAPI:
+
+```bash
 python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+# Linux / macOS:
+source .venv/bin/activate
+# Windows PowerShell instead: .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-
-# 3. Run the API
-uvicorn api:app --host 0.0.0.0 --port 8000
-
-# Or launch the Gradio UI:
-python app.py
+uvicorn api:app --host 127.0.0.1 --port 8000
 ```
 
-> [!TIP]
-> No `.env` file or API key needed. The engine works out of the box with the deterministic linear fallback scorer.
+Open [the local website](http://127.0.0.1:8000/). FastAPI serves the frontend and `/api/score` from the same origin. Run from the repository root so model/configuration paths resolve correctly. Set `TALENTMATCH_LIB_PATH` if the compiled native library is outside the usual `cpp_core/build` locations.
 
-### Run Tests
+The primary website uses `frontend/index.html`, `frontend/main.js`, and `frontend/style.css`. `frontend/src/` contains starter assets and is not the main interface. Docker copies the frontend source and serves the public files directly; it does not currently run a Vite build. A separately created `frontend/dist/` takes precedence when present.
+
+`python app.py` starts the legacy Gradio development interface on port 7860; it is separate from the website.
+
+### Docker
 
 ```bash
-python -m pytest tests/ -v --no-header
+docker build -t talentmatch .
+docker run --rm -p 8000:8000 talentmatch
 ```
 
-> [!NOTE]
-> Tests automatically skip C++ engine tests if the native library hasn't been built yet.
+Open [http://localhost:8000](http://localhost:8000). To enable coaching, pass `GROQ_API_KEY` through your runtime's environment management; never commit the key.
 
----
+The existing `docker-compose.yml` still maps port 7860 and requires `.env`; it is a legacy configuration and does not match the default FastAPI container command. Use the commands above until that configuration is updated.
 
-## Training the XGBoost Model (Optional)
+### Render
 
-The engine ships with a **deterministic linear fallback** scorer that works out of the box. To enable ML ranking via XGBoost:
+`render.yaml` defines the Docker web service and optional `GROQ_API_KEY` environment setting. Render supplies `PORT`. The free service may spin down when idle, so the first request can take longer. Clients stop waiting after 120 seconds and let the user retry.
+
+Publishing source to GitHub does not establish that a Render deployment has completed. The extension store is a separate release channel. See the release checklist in [the development guide](docs/DEVELOPMENT.md).
+
+## Inputs and API
+
+| Input | Limit / behavior |
+| --- | --- |
+| Resume PDF | Up to 2 MiB; `.pdf` name and PDF header required; parsing must succeed |
+| Resume text | Up to 100,000 characters; blank text rejected |
+| Extracted PDF text | Up to 100,000 characters; textless PDFs rejected |
+| Job description | Required, nonblank, up to 15,000 characters |
+| Resume source | Supply a PDF or text, not both |
+
+Text extraction uses PyMuPDF native text and text blocks. Scanned image-only resumes need OCR outside this application; there is no current OCR implementation.
+
+`POST /api/score` accepts multipart form data. Its response includes scores, skill gaps, `feature_vector`, `match_summary`, and `suggestions`. `extracted_resume_text` is included only when `return_resume_text=true` is submitted. The API does not return a `parsed_resume` profile.
 
 ```bash
-# Install training dependencies
+curl -X POST http://localhost:8000/api/score \
+  -F 'pdf_file=@resume.pdf' \
+  -F 'job_description=Backend engineer with Python and PostgreSQL experience'
+```
+
+`GET /api/health` returns 200 when the native engine is loadable and 503 when unavailable. It is not a complete embedding or coaching health check. See [the API reference](docs/API.md) for fields and errors.
+
+## Extension 1.2.1
+
+Download [talentmatch-extension.zip](talentmatch-extension.zip), extract it, and load the folder through your browser's developer extension page, or load the repository's `extension/` folder directly. The manifest must be at the selected folder's root.
+
+The extension uses the hosted TalentMatch API by default. Its theme is saved locally and does not synchronize with the website. Resume profiles stay on the device until cleared or the extension is uninstalled; they are sent to the API when scoring is requested.
+
+Rebuild the distributable after editing extension source:
+
+```bash
+python scripts/package_extension.py
+```
+
+The ZIP includes exactly `manifest.json`, `popup.html`, `popup.js`, `theme.js`, and `style.css`. For usage, permissions, and limitations, see [the extension guide](docs/EXTENSION.md).
+
+## Privacy and security behavior
+
+PDFs are saved under generated temporary server filenames and removed when request processing finishes. Scoring responses use `Cache-Control: no-store`. The application does not intentionally retain resume bodies or use them for training. This does not make guarantees about hosting-provider or external-service retention.
+
+When the deployment has `GROQ_API_KEY`, coaching sends up to the first 2,500 resume characters, 1,500 job-description characters, and matched/missing skill names to Groq. There is no per-request coaching opt-out in the UI yet. Omit the key to run scoring without coaching. See [the privacy page](frontend/privacy.html).
+
+The public API currently has no authentication, request throttling, or inference queue. Its synchronous inference runs inside the async request handler. The hardening changes do not constitute a comprehensive security audit or a production load guarantee.
+
+## Tests and validation
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest tests/test_api_security.py tests/test_coaching.py -q
+npm install --prefix tests
+npm test --prefix tests
+```
+
+Full pipeline checks also require the compiled engine and cached/downloadable embedding model:
+
+```bash
+# Bash: mock external coaching; use a previously cached embedding model.
+MOCK_LLM=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 python -m pytest tests/ -q
+```
+
+PowerShell equivalents and native regression commands are in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Only the bridge test class skips when the engine is missing; end-to-end pipeline tests still require it.
+
+Validation recorded on November 25, 2026: **44 Python tests passed, five simulated UI/extension tests passed, and native matching/repetition regressions passed**. Both extension themes were rendered and visually inspected in headless Chrome. The Python run used mocked coaching and cached embeddings. Edge store installation, real job-board integration, live Groq calls, and a production deployment were not verified by those tests.
+
+Historical throughput numbers in [BENCHMARK.md](BENCHMARK.md) predate these changes and do not establish thread safety or current production capacity.
+
+## Optional XGBoost training
+
+```bash
 pip install xgboost scikit-learn
-
-# Generate synthetic data and train (3000 samples by default)
-python scripts/train_model.py
-
-# With real labeled data:
-python scripts/train_model.py --samples 10000 --output models/xgboost_model.json
-
-# Rebuild with XGBoost support
+python scripts/train_model.py --samples 3000 --output models/xgboost_model.json
 ./scripts/build_engine.sh --xgboost
+# Windows build option: .\scripts\build_engine.ps1 -EnableXGBoost
 ```
 
----
+The bundled training script generates synthetic samples. It does not currently load real labeled datasets. XGBoost also needs discoverable native headers/libraries at build time. Keep model feature ordering aligned with `cpp_core/include/features.hpp`; validate and retrain after changing the training schema or feature definitions. An absent model or XGBoost dependency results in fallback scoring.
 
-## What Was Removed (v1 → v2)
+## Repository layout
 
-```mermaid
-flowchart LR
-    subgraph V1["v1 — LLM-Dependent"]
-        direction TB
-        V1A["Groq API<br/>(llama-3.3-70b)"]
-        V1B["LLM skill extraction"]
-        V1C["HeuristicRanker<br/>(60/40 hardcoded)"]
-        V1D["AI-generated narratives"]
-        V1E["GROQ_API_KEY required"]
-    end
-
-    subgraph V2["v2 — Deterministic C++"]
-        direction TB
-        V2A["C++ regex parser"]
-        V2B["Aho-Corasick trie<br/>+ fuzzy matching"]
-        V2C["XGBoost / linear fallback"]
-        V2D["Rule-based templates"]
-        V2E["No API key needed"]
-    end
-
-    V1 ==>|"Replaced by"| V2
-
-    style V1 fill:#1a1a2e,stroke:#f85149,stroke-width:2px,color:#eee
-    style V2 fill:#1a1a2e,stroke:#3fb950,stroke-width:2px,color:#eee
-```
-
-| v1 (Removed) | v2 (Replaced With) |
-|:---|:---|
-| Groq API (`llama-3.3-70b`) for resume parsing | Deterministic C++ regex parser |
-| LLM skill extraction | Aho-Corasick trie + fuzzy matching |
-| `HeuristicRanker` (60/40 hardcoded weights) | XGBoost (or linear fallback) |
-| AI-generated narrative explanations | Rule-based template explanations |
-| `easyocr` for image PDFs | PyMuPDF native text extraction |
-| `groq`, `tenacity`, `httpx` dependencies | Removed entirely |
-| `GROQ_API_KEY` environment variable | Not required |
-
----
-
-## Project Structure
-
-<details>
-<summary><b>Click to expand full project tree</b></summary>
-
-```
-talentmatch-ai-main/
-├── api.py                            ← FastAPI endpoint: validates inputs, manages PDF parsing, runs inference
-├── app.py                            ← Gradio UI for local developer testing
-├── Dockerfile                        ← Docker build configuration
-├── docker-compose.yml                ← Multi-container composition
-├── requirements.txt                  ← Python dependencies
-├── render.yaml                       ← Render deployment config
-├── test_api.py                       ← FastAPI endpoint test script
-│
-├── cpp_core/                         ← Core ML scoring engine (C++)
-│   ├── CMakeLists.txt                   CMake build configuration
-│   ├── engine.cpp                       FFI entry-point (C-linkage JSON)
-│   ├── include/
-│   │   ├── engine.h                     DLL exports for ctypes
-│   │   ├── features.hpp                 ~85 feature vector struct
-│   │   ├── resume.hpp                   Parsed candidate profile schema
-│   │   └── taxonomy.hpp                 Skill taxonomy map structures
-│   ├── parser/
-│   │   ├── resume_parser.cpp            Date, contact, segment parsing
-│   │   └── section_detector.cpp         Regex-based heading detection
-│   ├── skills/
-│   │   ├── skill_engine.cpp             Token matching, JD coverage
-│   │   ├── synonym_matcher.cpp          Variant resolution
-│   │   └── trie.cpp                     Aho-Corasick trie
-│   ├── retrieval/
-│   │   └── bm25.cpp                     BM25 relevance scoring
-│   ├── features/
-│   │   ├── education.cpp                Academic scoring
-│   │   ├── experience.cpp               Career timeline scoring
-│   │   └── skills_features.cpp          Overlap and density metrics
-│   ├── ranking/
-│   │   └── xgboost_ranker.cpp           XGBoost / linear fallback
-│   └── explainability/
-│       └── explanation_engine.cpp       Rule-based factor generation
-│
-├── src/                              ← Python orchestration layer
-│   ├── bridge.py                        ctypes FFI bridge to C++ DLL
-│   ├── config.py                        Paths, batch sizes, logging
-│   ├── devices.py                       Hardware detection (CUDA/MPS/CPU)
-│   ├── pipeline.py                      Core workflow: extract → embed → score
-│   ├── embeddings/
-│   │   └── generator.py                 Local MiniLM embedding computation
-│   ├── parsing/
-│   │   ├── extractor.py                 PDF text extraction (PyMuPDF)
-│   │   └── schema.py                    Pydantic response serialization
-│   └── (legacy modules)                 v1 Python-side scoring (retained for reference)
-│
-├── frontend/                         ← Web UI (Vite)
-│   ├── index.html                       Upload zones, score charts, match reports
-│   ├── style.css                        Dark theme, responsive grid layout
-│   └── main.js                          Upload handling, DOM updates, API calls
-│
-├── extension/                        ← Chrome browser extension
-│   ├── manifest.json                    Extension permissions and config
-│   ├── popup.html                       Extension popup interface
-│   └── popup.js                         JD extraction, resume upload, API calls
-│
-├── scripts/                          ← Build and training automation
-│   ├── build_engine.sh                  Linux/macOS build script
-│   ├── build_engine.ps1                 Windows build script
-│   └── train_model.py                   XGBoost training on synthetic data
-│
-├── models/                           ← ML model checkpoints
-│   ├── xgboost_model.json               Trained decision trees
-│   └── xgboost_model.features.json      Feature vector specification
-│
-└── tests/
-    └── test_pipeline.py              ← End-to-end integration + FFI tests
-```
-
-</details>
-
----
+| Path | Purpose |
+| --- | --- |
+| `api.py` | Input validation, temporary uploads, response contract, health and frontend serving |
+| `src/pipeline.py` | PDF extraction, embeddings, native scoring and optional coaching orchestration |
+| `src/bridge.py` | Native library discovery and ctypes memory handling |
+| `cpp_core/` | Parser, skill matcher, feature extraction, retrieval, ranking and explanations |
+| `frontend/` | Website, theme styles and privacy policy |
+| `extension/` | Chrome/Edge popup, saved profiles and theme initialization |
+| `models/` | Optional model and feature schema assets |
+| `scripts/` | Native build, synthetic model training and extension packaging |
+| `tests/` | API/coaching/pipeline tests, simulated UI tests and native regressions |
+| `docs/` | API, extension and development/release guides |
+| `CHANGELOG.md` | Current release changes |
+| `BENCHMARK.md` | Historical performance results and validation limits |
 
 ## Contributors
 
-| Contributor | Responsibilities |
-|:---|:---|
-| **Anshuman Pandey** | ML pipeline, C++ engine architecture, v2 refactor |
-| **Arnav Shukla** | Hosting, deployment, live demo, Edge extension |
-
----
+| Contributor | Contributions |
+| --- | --- |
+| **Anshuman Pandey** | ML pipeline, native C++ engine architecture and v2 refactor |
+| **Arnav Shukla** | Hosting and deployment, web interface and themes, Chrome/Edge extension, AI coaching integration, ATS warning additions, and benchmarking |
 
 ## License
 
-MIT — see [`LICENSE`](./LICENSE).
-
----
-
-<div align="center">
-
-### No LLM. No API Key. No Prompt Drift.
-
-*Deterministic C++ scoring engine · Aho-Corasick skill matching · BM25 retrieval · XGBoost ranking*
-
-**Same resume + same JD = same score. Every time.**
-
-<br/>
-
-Star this repo if you found it interesting!
-
----
-
-*Made by [Anshuman](https://github.com/AnshumanJ28) and [Arnav](https://github.com/Arnavshukla09)*
-
-</div>
+[MIT](LICENSE).

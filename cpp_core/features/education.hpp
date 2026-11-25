@@ -37,7 +37,8 @@ private:
 
 class ResumeQualityExtractor {
 public:
-    static void extract(const Resume& resume, FeatureVector& fv);
+    static void extract(const Resume& resume, FeatureVector& fv,
+                        const std::vector<std::string>& skill_names = {});
 
 private:
     static double section_completeness(const Resume& resume);

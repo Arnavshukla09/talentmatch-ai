@@ -3,3 +3,9 @@ data/
 __pycache__/
 *.pyc
 .venv/
+node_modules/
+uploads/
+cpp_core/build/
+.pytest_cache/
+native_regressions
+native_regressions.exe

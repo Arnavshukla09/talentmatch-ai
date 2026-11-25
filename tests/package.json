@@ -1,0 +1,6 @@
+{
+  "name": "talentmatch-ui-tests",
+  "private": true,
+  "scripts": { "test": "node --test test_ui.cjs" },
+  "devDependencies": { "jsdom": "^29.0.0" }
+}

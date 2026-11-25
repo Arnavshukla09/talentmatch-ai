@@ -6,12 +6,13 @@ Python responsibilities (only):
   2. Generate embeddings (sentence-transformers, local, no network)
   3. Call C++ engine via ctypes bridge
   4. Return JSON result
+  5. Optionally request Groq coaching after numerical scoring
 
 Python does NOT:
   - parse the resume structure
   - extract or normalize skills
   - compute any ATS score or feature
-  - rank or explain
+  - rank or generate rule-based scoring factors
 """
 
 from __future__ import annotations
@@ -41,12 +42,14 @@ class InferencePipeline:
         resume_pdf_path: Optional[Path] = None,
         job_description_text: str = "",
         resume_text: Optional[str] = None,
+        return_resume_text: bool = False,
     ) -> dict:
         """
         Args:
             resume_pdf_path:       Path to resume PDF (mutually exclusive with resume_text).
             job_description_text:  Raw job description text.
             resume_text:           Plain text resume (mutually exclusive with resume_pdf_path).
+            return_resume_text:    Include extracted_resume_text for requested local profile saving.
 
         Returns:
             {
@@ -71,6 +74,11 @@ class InferencePipeline:
             raw_text = self._extract_pdf_text(Path(resume_pdf_path))
         else:
             raise ValueError("Either resume_pdf_path or resume_text must be provided")
+
+        if not raw_text.strip():
+            raise ValueError("No readable text found. Upload a text-based PDF or use a saved text profile.")
+        if len(raw_text) > 100_000:
+            raise ValueError("Resume text exceeds 100000 characters.")
 
         logger.info(f"Resume text extracted: {len(raw_text)} chars")
 
@@ -110,6 +118,8 @@ class InferencePipeline:
             except Exception as e:
                 logger.warning(f"Failed to generate AI insights: {e}")
         
+        if return_resume_text:
+            result["extracted_resume_text"] = raw_text
         return result
 
     @staticmethod
@@ -118,28 +128,24 @@ class InferencePipeline:
         try:
             import fitz  # PyMuPDF
 
-            doc = fitz.open(str(pdf_path))
-            pages = []
-            for page in doc:
-                text = page.get_text("text").strip()
-                if text:
-                    pages.append(text)
-            doc.close()
-            full_text = "\n\n".join(pages)
+            with fitz.open(str(pdf_path)) as doc:
+                pages = []
+                for page in doc:
+                    text = page.get_text("text").strip()
+                    if text:
+                        pages.append(text)
+                full_text = "\n\n".join(pages)
 
-            if not full_text.strip():
-                logger.warning(f"No native text in {pdf_path.name} — trying OCR block extraction")
-                # Fallback: try get_text("blocks") which sometimes recovers more
-                doc2 = fitz.open(str(pdf_path))
-                blocks = []
-                for page in doc2:
-                    for block in page.get_text("blocks"):
-                        if block[6] == 0:  # text block
-                            blocks.append(block[4])
-                doc2.close()
-                full_text = "\n".join(blocks)
+                if not full_text.strip():
+                    # Text blocks can recover native text; this is not OCR.
+                    blocks = []
+                    for page in doc:
+                        for block in page.get_text("blocks"):
+                            if block[6] == 0:
+                                blocks.append(block[4])
+                    full_text = "\n".join(blocks)
 
             return full_text.strip()
 
         except Exception as exc:
-            raise RuntimeError(f"Failed to extract text from '{pdf_path}': {exc}") from exc
+            raise ValueError("Unable to read this PDF. Upload a valid, unencrypted PDF.") from exc

@@ -1,8 +1,8 @@
 """
 src/config.py  —  TalentMatch v2 central configuration.
 
-Groq has been removed entirely.
-Python is responsible only for embeddings and request orchestration.
+Groq is optional and used for coaching after native scoring.
+Python handles embeddings, PDF extraction and request orchestration.
 All ML computation runs inside the C++ engine.
 """
 
